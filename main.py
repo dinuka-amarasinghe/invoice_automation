@@ -1,9 +1,8 @@
-import os
-import subprocess
 import datetime as dt
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
+from docx2pdf import convert
 import docx
 
 
@@ -74,6 +73,7 @@ class InvoiceAutomation:
         self.service_amount_label.pack(padding_options)
         self.service_amount_entry.pack(padding_options)
         self.service_single_price_label.pack(padding_options)
+        self.service_single_price_entry.pack(padding_options)
         self.payment_method_label.pack(padding_options)
         self.service_single_price_entry.pack(padding_options)
         self.payment_method_dropdown.pack(padding_options)
@@ -81,8 +81,51 @@ class InvoiceAutomation:
 
         self.root.mainloop()
 
+    @staticmethod
+    def replace_text(paragraph, old_text, new_text):
+        if old_text in paragraph.text:
+            paragraph.text = paragraph.text.replace(old_text, new_text)
+
     def create_invoice(self):
-        pass
+        doc = docx.Document('template.docx')
+        selected_payment_method = self.payment_methods[self.payment_method.get()]
+
+        try:
+            replacements = {
+                "[Date]": dt.datetime.today().strftime('%d.%m.%Y'),
+                "[Partner]": self.partner_entry.get(),
+                "[Partner Street]": self.partner_street_entry.get(),
+                "[Partner ZIP_City_Country]": self.partner_zip_city_country_entry.get(),
+                "[Invoice Number]": self.invoice_number_entry.get(),
+                "[Service Description]": self.service_description_entry.get(),
+                "[Amount]": self.service_amount_entry.get(),
+                "[Single Price]": f"${float(self.service_single_price_entry.get()):.2f}",
+                "[Full Price]": f"${float(self.service_amount_entry.get()) *
+                                    float(self.service_single_price_entry.get()):.2f}",
+                "[Recipient]": selected_payment_method['Recipient'],
+                "[Bank]": selected_payment_method['Bank'],
+                "[IBAN]": selected_payment_method['IBAN'],
+                "[BIC]": selected_payment_method['BIC'],
+            }
+        except ValueError:
+            messagebox.showerror("Error", "Invalid amount or price!")
+            return
+
+        for paragraph in list(doc.paragraphs):
+            for old_text, new_text in replacements.items():
+                self.replace_text(paragraph, old_text, new_text)
+
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        for old_text, new_text in replacements.items():
+                            self.replace_text(paragraph, old_text, new_text)
+
+        save_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF documents", "*.pdf")])
+        doc.save("filled.docx")
+        convert('filled.docx', save_path)
+        messagebox.showinfo("Success", "Invoice created successfully!")
 
 
 if __name__ == '__main__':
